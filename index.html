@@ -419,7 +419,7 @@ if (G.combo>G.maxCombo) G.maxCombo=G.combo;
 sfxOk();
 flashBasket(basketCat, true);
 flashScreen(‘rgba(0,255,100,0.15)’);
-if (G.combo>=3) showCombo(G.combo+‘x KOMBİ! 🔥’);
+if (G.combo>=3) { showCombo(G.combo+‘x KOMBİ! 🔥’); sfxCombo(); }
 const newLv = Math.floor(G.caught/10)+1;
 if (newLv>G.level) {
 G.level=newLv;
@@ -484,9 +484,11 @@ el.style.animation=‘boom 0.5s ease-out forwards’;
 
 // ── GAME LOOP (just for gravity) ──
 function loop() {
-if (!G.running) { loopId=requestAnimationFrame(loop); return; }
+if (!G.running) { loopId = requestAnimationFrame(loop); return; }
 const area = document.getElementById(‘fall-area’);
+if (!area) { loopId = requestAnimationFrame(loop); return; }
 const aH = area.clientHeight;
+if (aH === 0) { loopId = requestAnimationFrame(loop); return; }
 
 fallingItems.forEach(obj=>{
 if (!obj.falling || obj.dragged) return;
@@ -535,31 +537,138 @@ show(‘s-over’);
 // ── START ──
 function startGame() {
 clearTimeout(spawnTimer);
-fallingItems.forEach(o=>o.el.remove());
+if (loopId) { cancelAnimationFrame(loopId); loopId=null; }
+fallingItems.forEach(o=>{ try{o.el.remove();}catch(e){} });
 fallingItems=[]; dragItem=null; itemId=0;
 initG(); G.running=true;
+sfxStart();
 hud();
 show(‘s-game’);
-setTimeout(()=>{ spawnItem(); }, 700);
+setTimeout(()=>{
+loopId = requestAnimationFrame(loop);
+spawnItem();
+}, 100);
 }
 
-document.getElementById(‘btn-start’).addEventListener(‘click’,startGame);
-document.getElementById(‘btn-retry’).addEventListener(‘click’,startGame);
-document.getElementById(‘btn-menu’).addEventListener(‘click’,()=>show(‘s-title’));
-document.getElementById(‘hi-lbl’).textContent=’HİSKOR: ’+(localStorage.getItem(‘re4_hi’)||0);
-
-// start gravity loop
-loopId = requestAnimationFrame(loop);
+document.getElementById(‘btn-start’).addEventListener(‘click’, startGame);
+document.getElementById(‘btn-retry’).addEventListener(‘click’, startGame);
+document.getElementById(‘btn-menu’).addEventListener(‘click’, ()=>show(‘s-title’));
+document.getElementById(‘hi-lbl’).textContent = ’HİSKOR: ’+(localStorage.getItem(‘re4_hi’)||0);
 
 // ── SOUND ──
-let ac=null;
-function getAc(){if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();if(ac.state===‘suspended’)ac.resume();return ac;}
-function beep(f,d,t,v){try{const a=getAc(),o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.type=t||‘square’;o.frequency.value=f;g.gain.setValueAtTime(v||0.14,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+d);o.start();o.stop(a.currentTime+d);}catch(e){}}
-function sfxOk()    { beep(523,0.05); setTimeout(()=>beep(784,0.09),55); }
-function sfxBad()   { beep(200,0.05); setTimeout(()=>beep(140,0.15),50); }
-function sfxMiss()  { beep(180,0.12,‘sine’,0.1); }
-function sfxPickup(){ beep(440,0.04,‘sine’,0.1); }
-function sfxBomb()  { beep(100,0.05); setTimeout(()=>beep(60,0.3,‘sawtooth’,0.25),50); }
+let ac = null;
+
+function unlockAudio() {
+if (ac) return;
+try {
+ac = new (window.AudioContext || window.webkitAudioContext)();
+// play silent buffer to unlock
+const buf = ac.createBuffer(1, 1, 22050);
+const src = ac.createBufferSource();
+src.buffer = buf;
+src.connect(ac.destination);
+src.start(0);
+} catch(e) {}
+}
+
+// Unlock on very first touch anywhere
+document.addEventListener(‘touchstart’, ()=>{ unlockAudio(); setTimeout(sfxIntro, 200); }, {once:true, passive:true});
+document.addEventListener(‘mousedown’,  ()=>{ unlockAudio(); setTimeout(sfxIntro, 200); }, {once:true, passive:true});
+
+function beep(freq, dur, type, vol) {
+try {
+if (!ac) unlockAudio();
+if (!ac) return;
+if (ac.state === ‘suspended’) ac.resume();
+const o = ac.createOscillator();
+const g = ac.createGain();
+const f = ac.createBiquadFilter();
+f.type = ‘lowpass’; f.frequency.value = 3000;
+o.connect(f); f.connect(g); g.connect(ac.destination);
+o.type = type || ‘square’;
+o.frequency.value = freq;
+const t = ac.currentTime;
+g.gain.setValueAtTime(vol || 0.15, t);
+g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+o.start(t);
+o.stop(t + dur + 0.01);
+} catch(e) {}
+}
+
+// Açılış intro müziği — heyecanlı arcade fanfarı
+function sfxIntro() {
+if (!ac) return;
+const notes = [
+// yükselen arpej
+[262, 0, 0.07], [330, 80, 0.07], [392, 160, 0.07], [523, 240, 0.07],
+[659, 320, 0.07], [784, 400, 0.07],
+// güçlü vurgu
+[1047, 480, 0.18], [784, 600, 0.10],
+// ikinci tur
+[523, 700, 0.07], [659, 780, 0.07], [784, 860, 0.07],
+[1047, 940, 0.22],
+// final chord
+[523, 1160, 0.15], [659, 1160, 0.12], [784, 1160, 0.10],
+];
+// harmony (oktav altı)
+const harmony = [
+[131, 0,   0.06], [165, 80,  0.06], [196, 160, 0.06], [262, 240, 0.06],
+[330, 320, 0.06], [392, 400, 0.06],
+[523, 480, 0.10], [392, 600, 0.08],
+[262, 700, 0.06], [330, 780, 0.06], [392, 860, 0.06],
+[523, 940, 0.12],
+];
+
+[…notes, …harmony].forEach(([freq, delayMs, dur]) => {
+setTimeout(() => beep(freq, dur, ‘square’, 0.16), delayMs);
+});
+
+// davul benzeri vurgu efekti
+setTimeout(()=>beep(80, 0.08, ‘sawtooth’, 0.12), 480);
+setTimeout(()=>beep(80, 0.08, ‘sawtooth’, 0.12), 940);
+setTimeout(()=>beep(80, 0.12, ‘sawtooth’, 0.15), 1160);
+}
+// Başlangıç jingle
+function sfxStart() {
+beep(262, 0.08, ‘square’, 0.15);
+setTimeout(()=>beep(330, 0.08, ‘square’, 0.15), 90);
+setTimeout(()=>beep(392, 0.08, ‘square’, 0.15), 180);
+setTimeout(()=>beep(523, 0.18, ‘square’, 0.18), 270);
+}
+// Doğru sepet
+function sfxOk() {
+beep(523, 0.06, ‘square’, 0.18);
+setTimeout(()=>beep(784, 0.1,  ‘square’, 0.18), 65);
+}
+// Yanlış sepet - daha belirgin, dramatik
+function sfxBad() {
+beep(300, 0.06, ‘sawtooth’, 0.25);
+setTimeout(()=>beep(200, 0.08, ‘sawtooth’, 0.28), 70);
+setTimeout(()=>beep(120, 0.06, ‘sawtooth’, 0.25), 150);
+setTimeout(()=>beep(80,  0.25, ‘sawtooth’, 0.3),  220);
+}
+// Kaçırma
+function sfxMiss() {
+beep(300, 0.05, ‘sine’, 0.12);
+setTimeout(()=>beep(180, 0.15, ‘sine’, 0.12), 60);
+}
+// Obje tutma
+function sfxPickup() {
+beep(440, 0.05, ‘sine’, 0.12);
+}
+// Bomba patlaması
+function sfxBomb() {
+beep(150, 0.05, ‘sawtooth’, 0.2);
+setTimeout(()=>beep(100, 0.08, ‘sawtooth’, 0.25), 60);
+setTimeout(()=>beep(60,  0.3,  ‘sawtooth’, 0.25), 140);
+}
+// Kombo
+function sfxCombo() {
+beep(523, 0.05, ‘square’, 0.15);
+setTimeout(()=>beep(659, 0.05, ‘square’, 0.15), 60);
+setTimeout(()=>beep(784, 0.05, ‘square’, 0.15), 120);
+setTimeout(()=>beep(1047,0.15, ‘square’, 0.18), 180);
+}
 </script>
 
 </body>
