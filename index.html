@@ -677,9 +677,10 @@ area.appendChild(s);
 // ═══════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════
-document.getElementById(‘btn-start’).onclick = startGame;
-document.getElementById(‘btn-retry’).onclick = startGame;
-document.getElementById(‘btn-menu’).onclick  = () => show(‘s-title’);
+window.addEventListener(‘DOMContentLoaded’, function() {
+document.getElementById(‘btn-start’).addEventListener(‘click’, startGame);
+document.getElementById(‘btn-retry’).addEventListener(‘click’, startGame);
+document.getElementById(‘btn-menu’).addEventListener(‘click’, function() { show(‘s-title’); });
 
 document.getElementById(‘hi-lbl’).textContent = ’HİSKOR: ’ + (localStorage.getItem(‘ky_hi3’) || 0);
 
@@ -696,6 +697,7 @@ document.addEventListener(‘pointerdown’, onFirstTouch, {once:true});
 // start gravity loop
 makeStars();
 loopId = requestAnimationFrame(loop);
+});
 </script>
 
 </body>
