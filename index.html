@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>KONSOL YAKALAYICI — RetroEmrah</title>
+<style>
+@font-face { font-family:'PS2'; src:url('https://fonts.gstatic.com/s/pressstart2p/v15/e3t4euO8T-267oIAQAu6jDQyK0nRwqkoh8HMT38.woff2') format('woff2'); }
+@font-face { font-family:'VT';  src:url('https://fonts.gstatic.com/s/vt323/v17/pxiKyp0ihIEF2isfFJXx.woff2') format('woff2'); }
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body {
+  background:#000;
+  display:flex; justify-content:center; align-items:center;
+  min-height:100vh; overflow:hidden;
+  touch-action:none; user-select:none; -webkit-user-select:none;
+}
+#app {
+  position:relative;
+  width:100%; max-width:420px;
+  height:100vh; max-height:780px;
+  background:#06060f; overflow:hidden;
+  display:flex; flex-direction:column;
+}
+#app::after {
+  content:'';
+  position:absolute; inset:0;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,0.15) 0px,rgba(0,0,0,0.15) 1px,transparent 1px,transparent 3px);
+  pointer-events:none; z-index:9999;
+}
+
+/* SCREENS */
+.scr { display:none; flex-direction:column; align-items:center; justify-content:center; flex:1; padding:22px 18px; }
+.scr.on { display:flex; }
+
+/* TITLE */
+#s-title { background:radial-gradient(ellipse at 50% 35%,#0d0022 0%,#000 70%); }
+.logo-t {
+font-family:‘PS2’,monospace; font-size:clamp(17px,5vw,24px);
+color:#ff00ff; text-align:center; line-height:1.5; letter-spacing:3px;
+text-shadow:0 0 12px #ff00ff,0 0 35px #ff00ff;
+animation:glow 2s ease-in-out infinite; margin-bottom:6px;
+}
+.logo-sub { font-family:‘PS2’,monospace; font-size:clamp(9px,2.5vw,12px); color:#00ffff; text-shadow:0 0 8px #00ffff; letter-spacing:2px; text-align:center; margin-bottom:18px; }
+@keyframes glow { 0%,100%{text-shadow:0 0 12px #ff00ff,0 0 35px #ff00ff;} 50%{text-shadow:0 0 22px #ff00ff,0 0 70px #ff00ff;} }
+.preview-row { font-size:30px; display:flex; gap:10px; margin-bottom:14px; animation:floaty 1.8s ease-in-out infinite; }
+@keyframes floaty { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-10px);} }
+.desc { font-family:‘VT’,monospace; font-size:20px; color:#999; text-align:center; line-height:1.7; margin-bottom:14px; }
+.how { font-family:‘VT’,monospace; font-size:18px; color:#ff00ff; text-align:center; margin-bottom:18px; line-height:1.6; border:1px solid #330033; padding:10px 16px; background:rgba(255,0,255,0.05); }
+.btn-go { font-family:‘PS2’,monospace; font-size:13px; color:#000; background:#ff00ff; border:none; padding:15px 34px; cursor:pointer; letter-spacing:2px; box-shadow:0 0 22px #ff00ff,4px 4px 0 #800080; animation:pbtn 1s ease-in-out infinite; }
+@keyframes pbtn { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-4px);} }
+.btn-go:active { transform:translateY(2px); }
+.hi-lbl { font-family:‘VT’,monospace; font-size:22px; color:#ff00ff; margin-top:14px; }
+.brand { position:absolute; bottom:12px; font-family:‘VT’,monospace; font-size:14px; color:#2a2a2a; letter-spacing:2px; }
+.brand b { color:#ff00ff; font-weight:normal; }
+
+/* GAME */
+#s-game { padding:0; justify-content:flex-start; background:#000; }
+#hud {
+width:100%; display:flex; justify-content:space-between; align-items:center;
+padding:9px 14px 7px; border-bottom:2px solid #ff00ff;
+background:rgba(255,0,255,0.05); flex-shrink:0;
+}
+.hb { text-align:center; }
+.hl { font-family:‘VT’,monospace; font-size:14px; color:#555; display:block; }
+.hv { font-family:‘PS2’,monospace; font-size:11px; color:#ff00ff; text-shadow:0 0 6px #ff00ff; }
+#hv-lives { color:#ff3333; text-shadow:0 0 6px #ff3333; font-size:14px; letter-spacing:2px; }
+#hv-combo { color:#ffff00; text-shadow:0 0 6px #ffff00; }
+#era-strip {
+width:100%; padding:4px; text-align:center;
+font-family:‘VT’,monospace; font-size:16px; color:#00ffff;
+background:rgba(0,255,255,0.07); border-bottom:1px solid #00ffff;
+letter-spacing:3px; flex-shrink:0;
+}
+
+/* FALL AREA */
+#fall-area {
+flex:1; position:relative; width:100%; overflow:hidden;
+background:linear-gradient(180deg,#06060f 0%,#0a0018 100%);
+}
+
+/* FALLING ITEM */
+.fitem {
+position:absolute;
+width:64px; height:72px;
+display:flex; flex-direction:column; align-items:center; justify-content:center;
+cursor:grab; border-radius:10px;
+border:2px solid rgba(255,255,255,0.15);
+background:rgba(255,255,255,0.05);
+transition:transform 0.1s, box-shadow 0.1s;
+z-index:10;
+}
+.fitem.dragging {
+cursor:grabbing;
+transform:scale(1.25);
+box-shadow:0 0 20px rgba(255,255,255,0.5);
+z-index:100;
+transition:none;
+}
+.fitem.bomb {
+border-color:rgba(255,50,50,0.4);
+background:rgba(255,0,0,0.08);
+}
+.fitem .fi-emoji { font-size:32px; line-height:1; }
+.fitem .fi-label { font-family:‘VT’,monospace; font-size:12px; color:#ccc; margin-top:2px; }
+.fitem.bomb .fi-label { color:#ff5555; }
+
+/* BASKETS */
+#baskets {
+width:100%; height:86px;
+display:flex; gap:5px; padding:5px 5px 6px;
+background:#000; border-top:2px solid #222;
+flex-shrink:0;
+}
+.bkt {
+flex:1; border-radius:8px; border:2px solid;
+display:flex; flex-direction:column; align-items:center; justify-content:center;
+transition:transform 0.1s, filter 0.1s;
+}
+.bkt .bk-icon { font-size:22px; }
+.bkt .bk-lbl { font-family:‘VT’,monospace; font-size:12px; margin-top:2px; letter-spacing:1px; }
+.bkt.c0 { background:rgba(255,100,0,0.1); border-color:#ff6400; color:#ff6400; }
+.bkt.c1 { background:rgba(0,255,100,0.1); border-color:#00ff64; color:#00ff64; }
+.bkt.c2 { background:rgba(0,150,255,0.1); border-color:#0096ff; color:#0096ff; }
+.bkt.highlight { transform:scale(1.06); filter:brightness(1.5); }
+.bkt.flash-ok  { animation:bok 0.3s ease-out; }
+.bkt.flash-bad { animation:bbad 0.3s ease-out; }
+@keyframes bok  { 0%{filter:brightness(4);}  100%{filter:brightness(1);} }
+@keyframes bbad { 0%{filter:brightness(0.2) saturate(8);} 100%{filter:brightness(1);} }
+
+/* COMBO POPUP */
+#combo-pop {
+position:absolute; top:35%; left:50%;
+transform:translate(-50%,-50%);
+font-family:‘PS2’,monospace; font-size:15px;
+color:#ffff00; text-shadow:0 0 15px #ffff00;
+pointer-events:none; opacity:0; z-index:200;
+white-space:nowrap; transition:opacity 0.5s, transform 0.5s;
+}
+
+/* SCREEN FLASH */
+#s-flash {
+position:absolute; inset:0; pointer-events:none;
+opacity:0; z-index:150; transition:opacity 0.12s;
+}
+
+/* BOMB WARNING */
+#bomb-warn {
+position:absolute; top:50%; left:50%;
+transform:translate(-50%,-50%);
+font-size:60px; pointer-events:none;
+opacity:0; z-index:300;
+animation:none;
+}
+@keyframes boom { 0%{transform:translate(-50%,-50%) scale(0.5);opacity:1;} 100%{transform:translate(-50%,-50%) scale(2.5);opacity:0;} }
+
+/* GAMEOVER */
+#s-over { background:radial-gradient(ellipse at 50% 40%,#1a0000 0%,#000 70%); gap:12px; }
+.go-h { font-family:‘PS2’,monospace; font-size:clamp(18px,5vw,24px); color:#ff3333; text-shadow:0 0 20px #ff3333; text-align:center; animation:gofl 0.5s infinite; }
+@keyframes gofl { 0%,100%{opacity:1;} 50%{opacity:0.7;} }
+.go-box { border:2px solid #333; padding:12px 20px; width:100%; background:rgba(255,255,255,0.02); }
+.go-r { display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid #222; font-family:‘VT’,monospace; font-size:21px; }
+.go-r:last-child { border-bottom:none; }
+.gl { color:#555; } .gv { color:#ff00ff; } .gv.big { font-size:27px; text-shadow:0 0 10px #ff00ff; }
+.new-rec { font-family:‘VT’,monospace; font-size:24px; color:#ffff00; text-shadow:0 0 12px #ffff00; text-align:center; min-height:28px; animation:blnk 0.5s step-end infinite; }
+@keyframes blnk { 0%,100%{opacity:1;} 50%{opacity:0;} }
+.btn-re { font-family:‘PS2’,monospace; font-size:11px; color:#000; background:#ff3333; border:none; padding:13px 26px; cursor:pointer; box-shadow:0 0 18px #ff3333,4px 4px 0 #800000; }
+.btn-re:active { transform:translateY(2px); }
+.btn-mn { font-family:‘PS2’,monospace; font-size:9px; color:#444; background:transparent; border:1px solid #333; padding:9px 18px; cursor:pointer; }
+</style>
+
+</head>
+<body>
+<div id="app">
+
+  <!-- TITLE -->
+
+  <div class="scr on" id="s-title">
+    <div class="logo-t">KONSOL<br>YAKALAYICI</div>
+    <div class="logo-sub">by RetroEmrah</div>
+    <div class="preview-row">🕹️ 💾 🖥️ 💣 👾</div>
+    <div class="desc">Düşen objeleri<br>doğru sepete sürükle!</div>
+    <div class="how">
+      ☝️ Objeye bas, sürükle, bırak<br>
+      🎮 KONSOL → NES, Sega, Atari...<br>
+      👾 ARCADE/EL → GameBoy, Neo Geo...<br>
+      🖥️ BİLGİSAYAR → C64, Disket, Mouse...<br>
+      💣 Bombaya dokunma — patlarsın!
+    </div>
+    <button class="btn-go" id="btn-start">▶ BAŞLA</button>
+    <div class="hi-lbl" id="hi-lbl">HİSKOR: 0</div>
+    <div class="brand">BY <b>RETROEMRAH</b> · TÜM HAKLAR SAKLIDIR</div>
+  </div>
+
+  <!-- GAME -->
+
+  <div class="scr" id="s-game">
+    <div id="hud">
+      <div class="hb"><span class="hl">SKOR</span><span class="hv" id="hv-score">0</span></div>
+      <div class="hb"><span class="hl">CAN</span><span class="hv" id="hv-lives">♥♥♥</span></div>
+      <div class="hb"><span class="hl">SEVİYE</span><span class="hv" id="hv-level">1</span></div>
+      <div class="hb"><span class="hl">KOMBİ</span><span class="hv" id="hv-combo">x1</span></div>
+    </div>
+    <div id="era-strip">── ARCADE ÇAĞI ──</div>
+    <div id="fall-area">
+      <div id="combo-pop"></div>
+      <div id="s-flash"></div>
+      <div id="bomb-warn">💥</div>
+    </div>
+    <div id="baskets">
+      <div class="bkt c0" id="bk0"><div class="bk-icon">🎮</div><div class="bk-lbl">KONSOL</div></div>
+      <div class="bkt c1" id="bk1"><div class="bk-icon">👾</div><div class="bk-lbl">ARCADE/EL</div></div>
+      <div class="bkt c2" id="bk2"><div class="bk-icon">🖥️</div><div class="bk-lbl">BİLGİSAYAR</div></div>
+    </div>
+  </div>
+
+  <!-- GAMEOVER -->
+
+  <div class="scr" id="s-over">
+    <div class="go-h">GAME OVER</div>
+    <div class="go-box">
+      <div class="go-r"><span class="gl">SKOR</span><span class="gv big" id="go-score">0</span></div>
+      <div class="go-r"><span class="gl">EN YÜKSEK</span><span class="gv" id="go-hi">0</span></div>
+      <div class="go-r"><span class="gl">YAKALANAN</span><span class="gv" id="go-caught">0</span></div>
+      <div class="go-r"><span class="gl">EN UZUN KOMBİ</span><span class="gv" id="go-combo">x1</span></div>
+    </div>
+    <div class="new-rec" id="new-rec"></div>
+    <button class="btn-re" id="btn-retry">▶ TEKRAR</button>
+    <button class="btn-mn" id="btn-menu">MENÜ</button>
+  </div>
+
+</div>
+<script>
+// ── DATA ──
+// c:0 = KONSOL  c:1 = ARCADE/EL  c:2 = BİLGİSAYAR
+const ITEMS = [
+  {e:'🎮', n:'NES',         c:0},
+  {e:'🔴', n:'Famicom',     c:0},
+  {e:'🟣', n:'Sega Genesis',c:0},
+  {e:'🟡', n:'Super NES',   c:0},
+  {e:'🕹️', n:'Atari 2600',  c:0},
+  {e:'👾', n:'GameBoy',     c:1},
+  {e:'🎯', n:'Game Gear',   c:1},
+  {e:'🏆', n:'Neo Geo',     c:1},
+  {e:'🃏', n:'Arcade',      c:1},
+  {e:'🎲', n:'Game&Watch',  c:1},
+  {e:'🖥️', n:'Commodore 64',c:2},
+  {e:'💾', n:'Disket',      c:2},
+  {e:'⌨️', n:'Klavye',      c:2},
+  {e:'🖱️', n:'Mouse',       c:2},
+  {e:'📀', n:'CD-ROM',      c:2},
+  {e:'🖨️', n:'Yazıcı',      c:2},
+];
+const ERAS = [
+  {min:1,max:3,  t:'── ARCADE ÇAĞI ──'},
+  {min:4,max:6,  t:'── ATARİ ÇAĞI ──'},
+  {min:7,max:9,  t:'── NES / FAMİKOM ──'},
+  {min:10,max:12,t:'── SEGA ÇAĞI ──'},
+  {min:13,max:99,t:'── 16-BİT ÇAĞI ──'},
+];
+
+// ── STATE ──
+let G = {};
+let fallingItems = [];   // {el, cat, x, y, speed, isBomb, falling, id}
+let dragItem = null;     // currently dragged item
+let dragOffX = 0, dragOffY = 0;
+let spawnTimer = null;
+let loopId = null;
+let itemId = 0;
+
+function initG() {
+G = {
+score:0, lives:3, level:1, combo:1, maxCombo:1,
+caught:0, running:false,
+hiScore: parseInt(localStorage.getItem(‘re4_hi’)||‘0’),
+spawnMs: 1600,
+fallSpeed: 0.9,
+};
+}
+
+// ── SCREENS ──
+function show(id) {
+document.querySelectorAll(’.scr’).forEach(s=>s.classList.remove(‘on’));
+document.getElementById(id).classList.add(‘on’);
+}
+
+function hud() {
+document.getElementById(‘hv-score’).textContent = G.score;
+document.getElementById(‘hv-lives’).textContent = ‘♥’.repeat(Math.max(0,G.lives))+‘♡’.repeat(Math.max(0,3-G.lives));
+document.getElementById(‘hv-level’).textContent = G.level;
+document.getElementById(‘hv-combo’).textContent = ‘x’+G.combo;
+const era = ERAS.find(e=>G.level>=e.min&&G.level<=e.max)||ERAS[0];
+document.getElementById(‘era-strip’).textContent = era.t;
+}
+
+// ── SPAWN ──
+function spawnItem() {
+if (!G.running) return;
+const area = document.getElementById(‘fall-area’);
+const aW = area.clientWidth;
+
+const isBomb = Math.random() < (0.12 + G.level*0.02);
+let data;
+if (isBomb) {
+data = {e:‘💣’, n:‘BOMBA!’, c:-1, isBomb:true};
+} else {
+data = {…ITEMS[Math.floor(Math.random()*ITEMS.length)], isBomb:false};
+}
+
+const el = document.createElement(‘div’);
+el.className = ‘fitem’ + (isBomb?’ bomb’:’’);
+el.innerHTML = `<span class="fi-emoji">${data.e}</span><span class="fi-label">${data.n}</span>`;
+
+const x = 30 + Math.random()*(aW - 90);
+el.style.left = x+‘px’;
+el.style.top  = ‘-80px’;
+el.style.transform = ‘rotate(’+((Math.random()-.5)*20)+‘deg)’;
+area.appendChild(el);
+
+const id = itemId++;
+const obj = {el, cat:data.c, isBomb:data.isBomb, x, y:-80, speed:G.fallSpeed + Math.random()*0.4, falling:true, id, dragged:false};
+fallingItems.push(obj);
+
+// touch/mouse events on item
+el.addEventListener(‘mousedown’,  e=>{ if(!obj.isBomb) startDrag(e, obj, e.clientX, e.clientY); else bombTouch(obj); });
+el.addEventListener(‘touchstart’, e=>{ e.preventDefault(); const t=e.touches[0]; if(!obj.isBomb) startDrag(e, obj, t.clientX, t.clientY); else bombTouch(obj); }, {passive:false});
+
+spawnTimer = setTimeout(spawnItem, G.spawnMs);
+}
+
+function bombTouch(obj) {
+if (!G.running) return;
+removeItem(obj);
+G.lives–;
+G.combo=1;
+hud();
+sfxBomb();
+showBoomAnim();
+flashScreen(‘rgba(255,50,0,0.6)’);
+if (G.lives<=0) { endGame(); }
+}
+
+// ── DRAG ──
+function startDrag(e, obj, cx, cy) {
+if (!G.running || obj.dragged) return;
+obj.dragged = true;
+obj.falling = false;
+dragItem = obj;
+const rect = obj.el.getBoundingClientRect();
+dragOffX = cx - rect.left - 32;
+dragOffY = cy - rect.top  - 36;
+obj.el.classList.add(‘dragging’);
+sfxPickup();
+}
+
+document.addEventListener(‘mousemove’, e=>moveDrag(e.clientX, e.clientY));
+document.addEventListener(‘touchmove’, e=>{ if(dragItem){ e.preventDefault(); moveDrag(e.touches[0].clientX, e.touches[0].clientY); }}, {passive:false});
+
+function moveDrag(cx, cy) {
+if (!dragItem) return;
+const area = document.getElementById(‘fall-area’);
+const rect = area.getBoundingClientRect();
+const nx = cx - rect.left - dragOffX;
+const ny = cy - rect.top  - dragOffY;
+dragItem.el.style.left = nx+‘px’;
+dragItem.el.style.top  = ny+‘px’;
+dragItem.x = nx; dragItem.y = ny;
+
+// highlight basket under finger
+highlightBasket(cx, cy);
+}
+
+document.addEventListener(‘mouseup’,  e=>endDrag(e.clientX, e.clientY));
+document.addEventListener(‘touchend’, e=>{ if(dragItem){ const t=e.changedTouches[0]; endDrag(t.clientX, t.clientY); }});
+
+function endDrag(cx, cy) {
+if (!dragItem) return;
+const obj = dragItem;
+dragItem = null;
+obj.el.classList.remove(‘dragging’);
+clearHighlight();
+
+// check if dropped on a basket
+const bkEls = document.querySelectorAll(’.bkt’);
+let dropped = false;
+bkEls.forEach((bk, i)=>{
+const r = bk.getBoundingClientRect();
+if (cx>=r.left && cx<=r.right && cy>=r.top && cy<=r.bottom) {
+dropped = true;
+handleDrop(obj, i);
+}
+});
+
+if (!dropped) {
+// dropped in fall area — resume falling
+obj.falling = true;
+obj.dragged = false;
+obj.el.style.transform = ‘’;
+}
+}
+
+function handleDrop(obj, basketCat) {
+removeItem(obj);
+if (obj.isBomb) {
+// dropped bomb on basket — safe!
+G.score += 50;
+hud();
+flashBasket(basketCat, true);
+flashScreen(‘rgba(0,255,100,0.2)’);
+sfxOk();
+showCombo(‘💣 GÜVENLİ! +50’);
+return;
+}
+if (obj.cat === basketCat) {
+G.caught++;
+G.score += 10 * G.combo;
+G.combo = Math.min(G.combo+1,10);
+if (G.combo>G.maxCombo) G.maxCombo=G.combo;
+sfxOk();
+flashBasket(basketCat, true);
+flashScreen(‘rgba(0,255,100,0.15)’);
+if (G.combo>=3) showCombo(G.combo+‘x KOMBİ! 🔥’);
+const newLv = Math.floor(G.caught/10)+1;
+if (newLv>G.level) {
+G.level=newLv;
+G.spawnMs  = Math.max(500, 1600-G.level*80);
+G.fallSpeed= 0.9 + G.level*0.2;
+}
+} else {
+G.lives–;
+G.combo=1;
+sfxBad();
+flashBasket(basketCat, false);
+flashScreen(‘rgba(255,0,0,0.25)’);
+if (G.lives<=0) { hud(); endGame(); return; }
+}
+hud();
+}
+
+function removeItem(obj) {
+obj.el.remove();
+fallingItems = fallingItems.filter(f=>f.id!==obj.id);
+}
+
+// ── HIGHLIGHT ──
+function highlightBasket(cx, cy) {
+clearHighlight();
+document.querySelectorAll(’.bkt’).forEach(bk=>{
+const r = bk.getBoundingClientRect();
+if (cx>=r.left && cx<=r.right && cy>=r.top && cy<=r.bottom) bk.classList.add(‘highlight’);
+});
+}
+function clearHighlight() {
+document.querySelectorAll(’.bkt’).forEach(bk=>bk.classList.remove(‘highlight’));
+}
+function flashBasket(cat, ok) {
+const el = document.getElementById(‘bk’+cat);
+const cls = ok?‘flash-ok’:‘flash-bad’;
+el.classList.add(cls);
+setTimeout(()=>el.classList.remove(cls),350);
+}
+
+// ── COMBO POPUP ──
+function showCombo(msg) {
+const el = document.getElementById(‘combo-pop’);
+el.textContent = msg;
+el.style.transition=‘none’; el.style.opacity=‘1’; el.style.transform=‘translate(-50%,-50%) scale(1.2)’;
+setTimeout(()=>{ el.style.transition=‘opacity 0.6s,transform 0.6s’; el.style.opacity=‘0’; el.style.transform=‘translate(-50%,-70%) scale(0.85)’; },800);
+}
+
+// ── FLASH ──
+function flashScreen(color) {
+const el=document.getElementById(‘s-flash’);
+el.style.background=color; el.style.opacity=‘1’;
+setTimeout(()=>el.style.opacity=‘0’,160);
+}
+
+function showBoomAnim() {
+const el=document.getElementById(‘bomb-warn’);
+el.style.animation=‘none’;
+void el.offsetWidth;
+el.style.animation=‘boom 0.5s ease-out forwards’;
+}
+
+// ── GAME LOOP (just for gravity) ──
+function loop() {
+if (!G.running) { loopId=requestAnimationFrame(loop); return; }
+const area = document.getElementById(‘fall-area’);
+const aH = area.clientHeight;
+
+fallingItems.forEach(obj=>{
+if (!obj.falling || obj.dragged) return;
+obj.y += obj.speed;
+obj.el.style.top = obj.y+‘px’;
+// missed
+if (obj.y > aH + 10) {
+removeItem(obj);
+if (!obj.isBomb) {
+// missed normal item — lose life
+G.lives–;
+G.combo=1;
+sfxMiss();
+flashScreen(‘rgba(255,100,0,0.2)’);
+hud();
+if (G.lives<=0) { endGame(); return; }
+}
+// bomb fell off = safe, no penalty
+}
+});
+
+loopId = requestAnimationFrame(loop);
+}
+
+// ── END ──
+function endGame() {
+G.running=false;
+clearTimeout(spawnTimer);
+fallingItems.forEach(o=>o.el.remove());
+fallingItems=[];
+dragItem=null;
+setTimeout(gameOver,600);
+}
+function gameOver() {
+const isNew=G.score>G.hiScore;
+if(isNew){G.hiScore=G.score;localStorage.setItem(‘re4_hi’,G.hiScore);}
+document.getElementById(‘go-score’).textContent =G.score;
+document.getElementById(‘go-hi’).textContent    =G.hiScore;
+document.getElementById(‘go-caught’).textContent=G.caught;
+document.getElementById(‘go-combo’).textContent =‘x’+G.maxCombo;
+document.getElementById(‘new-rec’).textContent  =isNew?‘★ YENİ REKOR! ★’:’’;
+document.getElementById(‘hi-lbl’).textContent   =’HİSKOR: ’+G.hiScore;
+show(‘s-over’);
+}
+
+// ── START ──
+function startGame() {
+clearTimeout(spawnTimer);
+fallingItems.forEach(o=>o.el.remove());
+fallingItems=[]; dragItem=null; itemId=0;
+initG(); G.running=true;
+hud();
+show(‘s-game’);
+setTimeout(()=>{ spawnItem(); }, 700);
+}
+
+document.getElementById(‘btn-start’).addEventListener(‘click’,startGame);
+document.getElementById(‘btn-retry’).addEventListener(‘click’,startGame);
+document.getElementById(‘btn-menu’).addEventListener(‘click’,()=>show(‘s-title’));
+document.getElementById(‘hi-lbl’).textContent=’HİSKOR: ’+(localStorage.getItem(‘re4_hi’)||0);
+
+// start gravity loop
+loopId = requestAnimationFrame(loop);
+
+// ── SOUND ──
+let ac=null;
+function getAc(){if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();if(ac.state===‘suspended’)ac.resume();return ac;}
+function beep(f,d,t,v){try{const a=getAc(),o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.type=t||‘square’;o.frequency.value=f;g.gain.setValueAtTime(v||0.14,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+d);o.start();o.stop(a.currentTime+d);}catch(e){}}
+function sfxOk()    { beep(523,0.05); setTimeout(()=>beep(784,0.09),55); }
+function sfxBad()   { beep(200,0.05); setTimeout(()=>beep(140,0.15),50); }
+function sfxMiss()  { beep(180,0.12,‘sine’,0.1); }
+function sfxPickup(){ beep(440,0.04,‘sine’,0.1); }
+function sfxBomb()  { beep(100,0.05); setTimeout(()=>beep(60,0.3,‘sawtooth’,0.25),50); }
+</script>
+
+</body>
+</html>
