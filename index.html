@@ -417,23 +417,16 @@ const id = uid++;
 const obj = { el, id, cat: data.c, isBomb: data.isBomb, x, y: -70, spd: G.fallSpd + Math.random()*0.5, active:true, dragging:false };
 activeItems.push(obj);
 
-// pointer events
-el.addEventListener(‘pointerdown’, ev => {
-ev.preventDefault();
-ev.stopPropagation();
-if (data.isBomb) {
-// touched bomb!
-killItem(obj);
-G.lives–; G.combo = 1;
-updateHUD();
-playBomb();
-doFlash(‘rgba(255,50,0,0.6)’);
-showBoom();
-if (G.lives <= 0) stopGame();
-return;
-}
+el.addEventListener(‘mousedown’, function(ev) {
+ev.preventDefault(); ev.stopPropagation();
+if (data.isBomb) { bombHit(obj); return; }
 startDrag(obj, ev.clientX, ev.clientY);
 });
+el.addEventListener(‘touchstart’, function(ev) {
+ev.preventDefault(); ev.stopPropagation();
+if (data.isBomb) { bombHit(obj); return; }
+startDrag(obj, ev.touches[0].clientX, ev.touches[0].clientY);
+}, {passive:false});
 
 spawnTmr = setTimeout(spawnOne, G.spawnMs);
 }
@@ -454,6 +447,16 @@ setTimeout(()=>boom.remove(), 500);
 // ═══════════════════════════════════════
 // DRAG
 // ═══════════════════════════════════════
+function bombHit(obj) {
+killItem(obj);
+G.lives–; G.combo = 1;
+updateHUD();
+playBomb();
+doFlash(‘rgba(255,50,0,0.6)’);
+showBoom();
+if (G.lives <= 0) stopGame();
+}
+
 function startDrag(obj, cx, cy) {
 if (dragObj) return;
 dragObj = obj;
@@ -467,46 +470,37 @@ obj.el.style.zIndex = ‘50’;
 playPickup();
 }
 
-document.addEventListener(‘pointermove’, ev => {
+function onMove(cx, cy) {
 if (!dragObj) return;
-ev.preventDefault();
-const area = document.getElementById(‘fall-area’);
-const ar = area.getBoundingClientRect();
-const nx = ev.clientX - ar.left - dragOX;
-const ny = ev.clientY - ar.top  - dragOY;
+var area = document.getElementById(‘fall-area’);
+var ar = area.getBoundingClientRect();
+var nx = cx - ar.left - dragOX;
+var ny = cy - ar.top  - dragOY;
 dragObj.el.style.left = nx + ‘px’;
 dragObj.el.style.top  = ny + ‘px’;
 dragObj.x = nx; dragObj.y = ny;
-
-// highlight basket under finger
-highlightBasket(ev.clientX, ev.clientY);
-}, {passive:false});
-
-document.addEventListener(‘pointerup’, ev => {
+highlightBasket(cx, cy);
+}
+function onUp(cx, cy) {
 if (!dragObj) return;
-const obj = dragObj;
+var obj = dragObj;
 dragObj = null;
 obj.el.classList.remove(‘held’);
 clearHighlight();
-
-// check drop target
-const bkts = document.querySelectorAll(’.bkt’);
-let dropped = false;
-bkts.forEach((bk, i) => {
-const r = bk.getBoundingClientRect();
-if (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) {
-dropped = true;
-handleDrop(obj, i);
+var bkts = document.querySelectorAll(’.bkt’);
+var dropped = false;
+bkts.forEach(function(bk, i) {
+var r = bk.getBoundingClientRect();
+if (cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom) {
+dropped = true; handleDrop(obj, i);
 }
 });
-
-if (!dropped) {
-// resume falling
-obj.active = true;
-obj.dragging = false;
-obj.el.style.zIndex = ‘10’;
+if (!dropped) { obj.active = true; obj.dragging = false; obj.el.style.zIndex = ‘10’; }
 }
-});
+document.addEventListener(‘mousemove’, function(ev) { onMove(ev.clientX, ev.clientY); });
+document.addEventListener(‘mouseup’,   function(ev) { onUp(ev.clientX, ev.clientY); });
+document.addEventListener(‘touchmove’, function(ev) { if(dragObj){ ev.preventDefault(); onMove(ev.touches[0].clientX, ev.touches[0].clientY); }}, {passive:false});
+document.addEventListener(‘touchend’,  function(ev) { if(dragObj){ var t=ev.changedTouches[0]; onUp(t.clientX, t.clientY); }});
 
 function handleDrop(obj, bcat) {
 killItem(obj);
@@ -678,23 +672,27 @@ area.appendChild(s);
 // INIT
 // ═══════════════════════════════════════
 window.addEventListener(‘DOMContentLoaded’, function() {
-document.getElementById(‘btn-start’).addEventListener(‘click’, startGame);
-document.getElementById(‘btn-retry’).addEventListener(‘click’, startGame);
-document.getElementById(‘btn-menu’).addEventListener(‘click’, function() { show(‘s-title’); });
+function addBtn(id, fn) {
+var el = document.getElementById(id);
+el.addEventListener(‘click’, fn);
+el.addEventListener(‘touchend’, function(e) { e.preventDefault(); fn(); });
+}
+addBtn(‘btn-start’, startGame);
+addBtn(‘btn-retry’, startGame);
+addBtn(‘btn-menu’,  function() { show(‘s-title’); });
 
 document.getElementById(‘hi-lbl’).textContent = ’HİSKOR: ’ + (localStorage.getItem(‘ky_hi3’) || 0);
 
-// First touch unlocks audio AND plays intro
-let introPlayed = false;
+var introPlayed = false;
 function onFirstTouch() {
 if (introPlayed) return;
 introPlayed = true;
 initAC(); resumeAC();
 playIntro();
 }
-document.addEventListener(‘pointerdown’, onFirstTouch, {once:true});
+document.addEventListener(‘touchstart’, onFirstTouch, {once:true, passive:true});
+document.addEventListener(‘mousedown’,  onFirstTouch, {once:true, passive:true});
 
-// start gravity loop
 makeStars();
 loopId = requestAnimationFrame(loop);
 });
